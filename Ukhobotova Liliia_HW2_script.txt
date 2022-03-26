@@ -1,0 +1,117 @@
+import os
+import re
+import string
+import nltk
+from nltk.probability import FreqDist
+from nltk.corpus import stopwords
+from nltk import word_tokenize,pos_tag
+nltk.download('punkt')
+nltk.download('stopwords')
+nltk.download('averaged_perceptron_tagger')
+nltk.download('wordnet')
+nltk.download('omw-1.4')
+from nltk.stem import SnowballStemmer
+import pymorphy2
+from wordcloud import WordCloud 
+import matplotlib.pyplot as plt
+
+txt_data=''
+s= []
+single_root_words =[]
+#Reading a file
+dir_name = "C:\Лилия\Загрузки\DATASETS2"
+snowball = SnowballStemmer(language="russian")
+    
+def remove_chars_from_text(text, chars):
+    return "".join([ch for ch in text if ch not in chars])
+
+def stemming(text):
+    result=[]
+    for word in text:
+        result.append(snowball.stem(word))
+    return result
+
+def remove_urls(text):
+    url_pattern = re.compile(r'https?://\S+|www\.\S+')
+    return url_pattern.sub(r'', text)      
+
+all_files = os.listdir(dir_name)
+#reading csv-files into a string
+#lowercasing
+for item in all_files:
+    if item.endswith(".csv"):
+        file = open(os.path.join(dir_name, item), "r")
+        txt_data = txt_data+file.read().lower()      
+        
+#removing URLs
+txt_data = remove_urls(txt_data)
+
+#removing stop-words and punctuations
+txt_data=re.sub(';', ' ', txt_data)
+txt_data=re.sub('\n', ' ', txt_data)
+txt_data=re.sub('\t', ' ', txt_data)
+txt_data=re.sub('-', ' ', txt_data)
+spec_chars = string.punctuation + '«»—…'
+
+txt_data = remove_chars_from_text(txt_data, spec_chars)
+txt_data = remove_chars_from_text(txt_data, string.digits)
+
+#tokenization
+list_of_words = word_tokenize(txt_data)
+
+#the number of words = list length
+print('Количество слов в исходном тексте ',len(list_of_words))
+
+#removing small words
+rus_smallwords=stopwords.words("russian") 
+#there are words in the texts that can also be removed
+rus_smallwords.extend(['также', 'об', 'по', 'рф','это','авг','например','очень', 'риа', 'лет']) 
+list_of_words = [word.strip() for word in list_of_words if word not in rus_smallwords]
+
+#the number of words in the cleaned-up text = list length
+print('Количество слов в очищенном тексте - ',len(list_of_words)) 
+
+#transforming the list of words into a text to use the tools of nltk-library
+txt=nltk.Text(list_of_words) 
+#transforming the list into the list of tuples containing words and their frequency in the text
+fdist = FreqDist(txt) 
+#10 most common words
+print('10 самых популярных слов в очищенном тексте- ',fdist.most_common(10))
+#visualizing a graph
+fdist.plot(10,cumulative=False)
+
+#Removing 2 words taking into account single root words 
+txt2=nltk.Text(stemming(list_of_words)) 
+fdist2 = FreqDist(txt2) 
+single_root=fdist2.most_common(10)
+print('Самые популярные корни слов - ',single_root)
+
+for i in range(2):
+    s.append( single_root[i][0])
+    
+single_root_words = [word.strip() for word in list_of_words if snowball.stem(word) in s]
+#removing duplicates and sorting
+single_root_words=sorted(list(set(single_root_words)))
+print('Наиболее повторяющиеся слова с учетом словоформ - ', single_root_words)
+
+#removing single root words from the text
+clear_text= [word.strip() for word in list_of_words if word not in single_root_words] 
+
+#text lemmatization
+morph = pymorphy2.MorphAnalyzer()
+clear_text = [morph.parse(word)[0].normal_form for word in clear_text]  
+
+#getting a list of 10 most common words
+txt=nltk.Text(clear_text) 
+fdist = FreqDist(txt) 
+print('10 самых популярных слов после удаления этих слов- ',fdist.most_common(10))
+#visualizing a new graph
+fdist.plot(10,cumulative=False)
+
+#Vizualizing a tag-cloud of most common words
+txt_raw=" ".join(clear_text)
+w_cloud=WordCloud(max_words=50,background_color="salmon").generate(txt_raw)
+plt.figure(figsize=(10,15))
+plt.imshow(w_cloud)
+plt.axis("off")
+plt.show()
